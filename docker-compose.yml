@@ -1,0 +1,97 @@
+# Assistant RAG local — Ollama · Qdrant · API FastAPI · Open WebUI
+# Lancement : docker compose up -d   (premier lancement : téléchargement des images et des modèles)
+#
+#   Open WebUI  http://localhost:3000        (chat)
+#   API         http://localhost:8000/docs   (documentation interactive)
+#   Qdrant      http://localhost:6333/dashboard
+#   Ollama      http://localhost:11434
+
+name: rag-assistant
+
+services:
+  ollama:
+    image: ollama/ollama:0.40.17
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Télécharge les modèles une seule fois (ils restent dans le volume ollama_data), puis s'arrête.
+  ollama-init:
+    image: ollama/ollama:0.40.17
+    container_name: ollama-init
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for m in "${LLM_MODEL:-llama3.2:3b}" "${EMBED_MODEL:-nomic-embed-text}"; do
+          ollama show "$$m" > /dev/null 2>&1 && echo "$$m déjà présent" || ollama pull "$$m" || exit 1
+        done
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  qdrant:
+    image: qdrant/qdrant:v1.20.2
+    container_name: qdrant
+    ports:
+      - "6333:6333"   # API REST + tableau de bord (/dashboard)
+      - "6334:6334"   # API gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    image: rag-assistant-api:0.1.0
+    container_name: rag-api
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Dans le réseau Docker, les services se joignent par leur nom (pas par localhost)
+      OLLAMA_URL: http://ollama:11434
+      QDRANT_URL: http://qdrant:6333
+      DATA_DIR: /data
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data:ro
+      - ./eval:/app/eval
+    depends_on:
+      qdrant:
+        condition: service_started
+      ollama-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.13.4
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    environment:
+      # Connexion « OpenAI » vers notre API RAG + Ollama direct (LLM sans RAG, pour comparer)
+      OPENAI_API_BASE_URL: http://api:8000/v1
+      OPENAI_API_KEY: local-pas-de-cle
+      OLLAMA_BASE_URL: http://ollama:11434
+      ENABLE_OPENAI_API: "true"
+    volumes:
+      - open_webui_data:/app/backend/data
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  qdrant_data:
+  open_webui_data:

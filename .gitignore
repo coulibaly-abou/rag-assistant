@@ -1,0 +1,25 @@
+# Documents de cours : NON versionnés (droits d'auteur des professeurs)
+data/*
+# … sauf les documents de démonstration libres de droits
+!data/*_demo/
+
+# Configuration locale
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Résultats d'évaluation détaillés (le résumé experiences.csv et les graphiques restent versionnés)
+eval/resultats/details/
+
+# Éditeurs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

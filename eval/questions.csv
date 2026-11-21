@@ -1,0 +1,20 @@
+question;reponse_attendue;source_attendue;page_attendue;hors_corpus
+Quelle est la différence entre une population et un échantillon ?;La population est l'ensemble des individus étudiés, l'échantillon est la partie sur laquelle on fait les mesures.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Qu'est-ce qu'une variable qualitative ordinale ?;Une variable qualitative dont les modalités ont un ordre naturel, comme les mentions.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Comment calcule-t-on la médiane quand l'effectif est pair ?;On prend la moyenne des deux valeurs centrales de la série triée.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Pourquoi préfère-t-on souvent la médiane à la moyenne pour les salaires ?;Parce que la médiane est robuste, peu sensible aux valeurs extrêmes.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Pourquoi divise-t-on par n-1 dans la variance corrigée ?;Pour obtenir un estimateur sans biais de la variance de la population.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+À quoi sert le coefficient de variation ?;À comparer la dispersion de séries d'unités différentes : CV = écart-type / moyenne.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Quand une valeur est-elle aberrante selon la règle de Tukey ?;Quand elle est inférieure à Q1 - 1,5 IQR ou supérieure à Q3 + 1,5 IQR.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Que signifie un coefficient de corrélation proche de -1 ?;Une forte liaison linéaire décroissante entre les deux variables.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Comment calcule-t-on l'effectif théorique d'une case pour le test du khi-deux ?;Total de la ligne fois total de la colonne divisé par l'effectif total.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Quelle est la différence entre une liste et un tuple en Python ?;La liste est modifiable, le tuple est immuable.;Python_demo/cours_python_pandas.md;1;0
+Comment obtenir une valeur par défaut si une clé est absente d'un dictionnaire ?;Avec la méthode get, par exemple etudiant.get("ville", "inconnue").;Python_demo/cours_python_pandas.md;1;0
+Comment lire un CSV séparé par des points-virgules avec pandas ?;pd.read_csv avec le paramètre sep égal au point-virgule.;Python_demo/cours_python_pandas.md;1;0
+Quelle est la différence entre loc et iloc ?;loc sélectionne par étiquettes, iloc par positions entières.;Python_demo/cours_python_pandas.md;1;0
+Comment compter les valeurs manquantes par colonne ?;df.isna().sum().;Python_demo/cours_python_pandas.md;1;0
+Quelle est la valeur par défaut du paramètre how dans pd.merge ?;inner, l'intersection des clés.;Python_demo/cours_python_pandas.md;1;0
+Comment créer un environnement virtuel Python ?;python -m venv .venv puis activation.;Python_demo/cours_python_pandas.md;1;0
+Qui a remporté la Coupe du monde de football 2018 ?;Hors cours : le système doit répondre « je ne sais pas ».;;;1
+Quelle est la recette de la pâte à crêpes ?;Hors cours : le système doit répondre « je ne sais pas ».;;;1
+Comment entraîner un réseau de neurones convolutif avec PyTorch ?;Hors cours : le système doit répondre « je ne sais pas ».;;;1

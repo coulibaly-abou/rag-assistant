@@ -1,0 +1,183 @@
+# Assistant RAG local sur mes cours
+
+Assistant question-réponse sur mes propres documents de cours (PDF, DOCX, Markdown). Il fonctionne **100 % en local** avec Docker : aucune API payante, aucune donnée envoyée à l'extérieur.
+
+**Stack :** Ollama (`llama3.2:3b`, `nomic-embed-text`) · Qdrant · FastAPI · Open WebUI · Docker Compose
+
+Le système utilise la technique **RAG** (*Retrieval-Augmented Generation*). Avant de répondre, il cherche les passages pertinents dans mes documents. Le LLM rédige ensuite sa réponse **uniquement à partir de ces passages**, en citant le fichier et la page. Si l'information n'est pas dans les documents, il répond « je ne sais pas ».
+
+## Architecture
+
+```mermaid
+flowchart TB
+    U[Utilisateur<br/>navigateur] -->|question| W[Open WebUI :3000]
+    W -->|API compatible OpenAI| A[API FastAPI :8000<br/>chunking · recherche · prompt · sources]
+    A -->|recherche top-k| Q[(Qdrant :6333<br/>vecteurs + texte + métadonnées)]
+    A -->|génération| O[Ollama :11434<br/>llama3.2:3b · nomic-embed-text]
+    D[data/*.pdf, *.docx, *.md] -->|indexation| A
+    A -->|embeddings| O
+```
+
+Le système fonctionne en deux phases :
+
+- **Indexation.** Lecture de `data/` page par page, découpage en chunks de 300 mots avec un chevauchement de 50, calcul des embeddings, puis stockage dans Qdrant avec les métadonnées : fichier, page, matière et empreinte SHA-256. Un fichier inchangé n'est pas réindexé.
+- **Question / réponse.** La question est transformée en embedding. On récupère ensuite les *k* chunks les plus proches (similarité cosinus). Le prompt est construit avec des consignes strictes, le contexte numéroté et la question. Le LLM génère la réponse, et les sources sont ajoutées à la fin.
+
+## Installation (3 commandes)
+
+Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/), environ 12 Go d'espace disque et 8 Go de RAM. Aucun GPU n'est nécessaire.
+
+```bash
+git clone https://github.com/coulibaly-abou/rag-assistant.git
+cd rag-assistant
+docker compose up -d
+```
+
+Le premier lancement télécharge les images et les modèles, ce qui prend 10 à 20 minutes selon la connexion. Pour suivre l'avancement : `docker compose logs -f ollama-init api`.
+
+| Service | URL |
+|---|---|
+| Chat (Open WebUI) | http://localhost:3000 |
+| API + documentation interactive | http://localhost:8000/docs |
+| Tableau de bord Qdrant | http://localhost:6333/dashboard |
+| Ollama | http://localhost:11434 |
+
+## Utilisation
+
+### Ajouter mes cours
+
+Place tes fichiers dans `data/`, avec **un sous-dossier par matière** :
+
+```
+data/
+├── Statistiques/
+│   ├── cours_regression.pdf
+│   └── td3.docx
+└── Programmation/
+    └── cours_python.md
+```
+
+Lance ensuite l'indexation. Seuls les fichiers nouveaux ou modifiés sont traités :
+
+```bash
+curl -X POST http://localhost:8000/ingest
+# ou : docker compose exec api python -m app.ingest
+```
+
+L'API indexe aussi automatiquement `data/` à chaque démarrage. Le dossier `data/` n'est pas versionné, à l'exception des deux cours de démonstration `*_demo/`, qui sont libres de droits.
+
+### Poser des questions
+
+- **Dans Open WebUI** (http://localhost:3000) : crée un compte local au premier lancement, puis choisis le modèle **`rag-cours`**. Pour limiter la recherche à une matière, choisis plutôt **`rag-cours/<matière>`**. Les modèles Ollama « bruts » restent disponibles, ce qui permet de comparer avec le LLM sans RAG.
+- **Par l'API** :
+
+```bash
+curl -X POST http://localhost:8000/ask -H "Content-Type: application/json" \
+  -d '{"question": "Comment calcule-t-on la médiane ?", "matiere": "Statistiques_demo"}'
+```
+
+### Endpoints
+
+| Méthode | Route | Rôle |
+|---|---|---|
+| `POST` | `/ask` | Question → réponse + sources (filtre `matiere` et `top_k` optionnels) |
+| `POST` | `/ingest` | Indexe les fichiers nouveaux ou modifiés de `data/` |
+| `GET` | `/health` | État d'Ollama et de Qdrant, présence des modèles, nombre de chunks |
+| `GET` | `/matieres` | Matières indexées |
+| `GET` | `/v1/models` | Compatible OpenAI (pour Open WebUI) |
+| `POST` | `/v1/chat/completions` | Compatible OpenAI, avec streaming |
+
+## Configuration
+
+Tous les paramètres se règlent dans un fichier `.env`, à créer à partir de [.env.example](.env.example) : modèles, taille des chunks, top-k, température, etc. Rien n'est écrit en dur dans le code. Après une modification, lance `docker compose up -d`.
+
+## Évaluation
+
+Le jeu de test se trouve dans [eval/questions.csv](eval/questions.csv), séparé par des points-virgules et modifiable dans Excel. Pour chaque question, il indique la réponse attendue, le fichier et la page attendus, et s'il s'agit d'une question piège hors corpus.
+
+```bash
+# Une configuration
+docker compose exec api python -m eval.run_eval --tag reference --judge
+
+# Plan d'expériences : référence, puis un seul paramètre changé à la fois
+docker compose exec api python -m eval.plan_experiences             # recherche seule (rapide)
+docker compose exec api python -m eval.plan_experiences --complet   # + génération + LLM sans RAG
+
+# Graphiques
+docker compose exec api python -m eval.plot_results
+```
+
+| Métrique | Ce qu'elle mesure |
+|---|---|
+| Hit Rate@k | Part des questions où le bon passage (fichier, page) est dans les *k* résultats |
+| MRR | Moyenne de 1/rang du premier bon passage |
+| Fidélité (0-2) | Réponse justifiée par le contexte (LLM-juge local) |
+| Pertinence (0-2) | Réponse correcte par rapport à la réponse attendue (LLM-juge local) |
+| Refus correct | Part des questions hors corpus où le système répond « je ne sais pas » |
+| Faux refus | Part des questions du corpus où le système refuse à tort |
+| Latence | Médiane et 95e centile, en secondes |
+
+Chaque exécution ajoute une ligne dans `eval/resultats/experiences.csv`. Le détail question par question est enregistré dans `eval/resultats/details/`. Chaque expérience de découpage utilise sa propre collection Qdrant (`eval_<modèle>_<taille>_<chevauchement>`).
+
+### Résultats
+
+> À compléter avec les résultats sur mes vrais cours (jeu de 30 à 50 questions).
+
+| Configuration | Hit Rate@5 | MRR | Pertinence | Refus correct | Latence médiane |
+|---|---|---|---|---|---|
+| LLM sans RAG | – | – | | | |
+| Référence (300 mots, k = 5) | | | | | |
+| … | | | | | |
+
+## Développement
+
+```bash
+pip install -r requirements-dev.txt
+ruff check . && ruff format --check .
+pytest
+```
+
+Les tests utilisent de faux clients et tournent donc sans Docker. La CI GitHub Actions lance ruff, pytest et le build de l'image Docker à chaque push.
+
+Le notebook [notebooks/01_decouverte.ipynb](notebooks/01_decouverte.ipynb) sert à la découverte : embeddings, similarité cosinus calculée à la main et recherche dans Qdrant.
+
+## Structure du projet
+
+```
+rag-assistant/
+├── docker-compose.yml      # ollama, ollama-init, qdrant, api, open-webui
+├── .env.example
+├── api/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── app/
+│       ├── main.py           # routes FastAPI
+│       ├── config.py         # paramètres (.env)
+│       ├── loaders.py        # lecture PDF / DOCX / MD
+│       ├── chunking.py       # découpage
+│       ├── embeddings.py     # embeddings Ollama
+│       ├── llm.py            # génération Ollama
+│       ├── store.py          # Qdrant
+│       ├── ingest.py         # pipeline d'indexation
+│       ├── rag.py            # recherche + prompt + génération
+│       └── openai_compat.py  # /v1/* pour Open WebUI
+├── eval/                   # jeu de test, métriques, plan d'expériences, résultats
+├── notebooks/              # découverte (étape 2)
+├── tests/                  # pytest
+├── data/                   # mes cours (non versionnés) + 2 cours de démo
+└── docs/                   # cahier des charges
+```
+
+## Dépannage
+
+- **`rag-cours` n'apparaît pas dans Open WebUI.** Open WebUI enregistre sa configuration au premier lancement, et les variables d'environnement peuvent ensuite être ignorées. Ajoute la connexion à la main : *Paramètres d'administration → Connexions → OpenAI*, URL `http://api:8000/v1`, clé `local` (n'importe quelle valeur).
+- **Tester `/ask` depuis Windows.** Avec Git Bash, `curl` peut mal encoder les accents. Utilise plutôt la page http://localhost:8000/docs (bouton *Try it out*).
+- **Réponses lentes.** Augmente la mémoire allouée à Docker Desktop (*Settings → Resources*), réduis `TOP_K` à 3 ou essaie un modèle plus petit (`LLM_MODEL=qwen2.5:1.5b`).
+
+## Limites
+
+- Les PDF scannés (images) ne sont pas lus, car il n'y a pas d'OCR. Ils apparaissent comme des erreurs dans le rapport d'indexation.
+- Un DOCX ou un Markdown n'a pas de pages : ses passages sont tous rattachés à la page 1.
+- Sur processeur seul, une réponse prend de 10 à 30 secondes avec un modèle 3B.
+- Le LLM-juge local (3B) est imparfait : il faut compléter avec une notation manuelle sur un échantillon.
+- Dans Open WebUI, seule la dernière question est utilisée pour la recherche. Les questions de relance du type « et pour la variance ? » doivent donc être reformulées.
