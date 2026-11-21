@@ -29,6 +29,7 @@ def main() -> None:
         "chunk_size": 300,
         "chunk_overlap": 50,
         "top_k": 5,
+        "search_mode": "vector",
         "embed_model": s.embed_model,
         "llm_model": s.llm_model,
         "judge": cli.judge,
@@ -42,6 +43,8 @@ def main() -> None:
         ("chunk800", {"chunk_size": 800, "chunk_overlap": 80}),
         ("top_k3", {"top_k": 3}),
         ("top_k8", {"top_k": 8}),
+        ("hybride", {"search_mode": "hybrid"}),
+        ("hybride_k3", {"search_mode": "hybrid", "top_k": 3}),
     ]
     if cli.complet:
         experiences.append(("sans_rag", {"mode": "no-rag"}))

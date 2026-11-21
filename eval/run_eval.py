@@ -27,7 +27,7 @@ from app.config import get_settings
 from app.embeddings import OllamaEmbedder
 from app.ingest import ingest
 from app.llm import OllamaLLM
-from app.rag import RagPipeline, build_messages
+from app.rag import NO_ANSWER, RagPipeline, build_messages
 from app.store import VectorStore
 from eval.metrics import (
     first_relevant_rank,
@@ -114,12 +114,70 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--chunk-size", type=int, default=s.chunk_size)
     parser.add_argument("--chunk-overlap", type=int, default=s.chunk_overlap)
     parser.add_argument("--top-k", type=int, default=s.top_k)
+    parser.add_argument(
+        "--search-mode",
+        choices=["vector", "hybrid"],
+        default=s.search_mode,
+        help="vector : sémantique seule | hybrid : sémantique + BM25 (fusion RRF)",
+    )
     parser.add_argument("--embed-model", default=s.embed_model)
     parser.add_argument("--llm-model", default=s.llm_model)
     parser.add_argument("--judge", action="store_true", help="Noter fidélité/pertinence (LLM-juge)")
     parser.add_argument("--judge-model", default=s.llm_model)
     parser.add_argument("--limit", type=int, default=None, help="N'évaluer que les N premières")
     return parser.parse_args()
+
+
+def with_retry(fn, attempts: int = 3, delay: float = 20.0):
+    """Ollama peut renvoyer une erreur 500 si la mémoire manque : on réessaie après une pause."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            if attempt == attempts:
+                raise
+            print(f"  essai {attempt} échoué ({exc}), nouvel essai dans {delay:.0f} s", flush=True)
+            time.sleep(delay)
+
+
+def evaluate_question(q: Question, row: dict, args, pipeline, llm, judge) -> None:
+    hits = []
+    if args.mode != "no-rag":
+        start = time.perf_counter()
+        hits = with_retry(lambda: pipeline.retrieve(q.question, top_k=args.top_k))
+        row["latence_recherche_s"] = round(time.perf_counter() - start, 3)
+        row["sources_trouvees"] = " | ".join(f"{h.source}#p{h.page}" for h in hits)
+        if not q.out_of_corpus and q.expected_source:
+            retrieved = [(h.source, h.page) for h in hits]
+            row["rang"] = first_relevant_rank(retrieved, q.expected_source, q.expected_page)
+
+    if args.mode == "retrieval":
+        return
+
+    start = time.perf_counter()
+    if args.mode == "rag":
+        messages = build_messages(q.question, hits) if hits else None
+    else:
+        messages = [
+            {"role": "system", "content": NO_RAG_PROMPT},
+            {"role": "user", "content": q.question},
+        ]
+    answer = with_retry(lambda: llm.chat(messages)).strip() if messages else NO_ANSWER
+    # en mode rag, la latence inclut la recherche (comme pour l'utilisateur)
+    row["latence_s"] = round(time.perf_counter() - start + row.get("latence_recherche_s", 0), 2)
+    row["reponse"] = answer
+    row["refus"] = int(is_refusal(answer))
+
+    if args.judge and not q.out_of_corpus:
+        context = "\n\n".join(f"[{i}] {h.text}" for i, h in enumerate(hits, 1))
+        prompt = JUDGE_PROMPT.format(
+            question=q.question,
+            expected=q.expected_answer,
+            context=context or "(aucun contexte)",
+            answer=answer,
+        )
+        verdict = with_retry(lambda: judge.chat([{"role": "user", "content": prompt}]))
+        row["fidelite"], row["pertinence"] = parse_judge_scores(verdict)
 
 
 def run(args: argparse.Namespace) -> dict:
@@ -134,7 +192,15 @@ def run(args: argparse.Namespace) -> dict:
     )
     llm = OllamaLLM(s.ollama_url, args.llm_model, s.request_timeout, s.temperature, s.num_ctx)
     judge = OllamaLLM(s.ollama_url, args.judge_model, s.request_timeout, 0.0, s.num_ctx)
-    pipeline = RagPipeline(embedder, store, llm, args.top_k, s.min_score)
+    pipeline = RagPipeline(
+        embedder,
+        store,
+        llm,
+        top_k=args.top_k,
+        min_score=s.min_score,
+        search_mode=args.search_mode,
+        hybrid_candidates=s.hybrid_candidates,
+    )
 
     if args.mode != "no-rag":
         print(f"Collection d'évaluation : {store.collection}")
@@ -143,53 +209,18 @@ def run(args: argparse.Namespace) -> dict:
 
     details = []
     for i, q in enumerate(questions, 1):
-        print(f"[{i}/{len(questions)}] {q.question[:70]}")
+        print(f"[{i}/{len(questions)}] {q.question[:70]}", flush=True)
         row = {
             "question": q.question,
             "hors_corpus": int(q.out_of_corpus),
             "source_attendue": q.expected_source,
             "page_attendue": q.expected_page or "",
         }
-        hits = []
-        if args.mode != "no-rag":
-            start = time.perf_counter()
-            hits = pipeline.retrieve(q.question, top_k=args.top_k)
-            row["latence_recherche_s"] = round(time.perf_counter() - start, 3)
-            row["sources_trouvees"] = " | ".join(f"{h.source}#p{h.page}" for h in hits)
-            if not q.out_of_corpus and q.expected_source:
-                retrieved = [(h.source, h.page) for h in hits]
-                row["rang"] = first_relevant_rank(retrieved, q.expected_source, q.expected_page)
-
-        if args.mode != "retrieval":
-            start = time.perf_counter()
-            if args.mode == "rag":
-                answer = pipeline.answer(q.question, top_k=args.top_k).answer
-            else:
-                messages = [
-                    {"role": "system", "content": NO_RAG_PROMPT},
-                    {"role": "user", "content": q.question},
-                ]
-                answer = llm.chat(messages)
-            row["latence_s"] = round(time.perf_counter() - start, 2)
-            row["reponse"] = answer
-            row["refus"] = int(is_refusal(answer))
-
-            if args.judge and not q.out_of_corpus:
-                context = "\n\n".join(m["content"] for m in build_messages(q.question, hits)[1:])
-                verdict = judge.chat(
-                    [
-                        {
-                            "role": "user",
-                            "content": JUDGE_PROMPT.format(
-                                question=q.question,
-                                expected=q.expected_answer,
-                                context=context if hits else "(aucun contexte)",
-                                answer=answer,
-                            ),
-                        }
-                    ]
-                )
-                row["fidelite"], row["pertinence"] = parse_judge_scores(verdict)
+        try:
+            evaluate_question(q, row, args, pipeline, llm, judge)
+        except Exception as exc:  # une question en échec ne fait pas perdre les autres
+            print(f"  ERREUR : {exc}", flush=True)
+            row["erreur"] = str(exc)[:300]
         details.append(row)
 
     summary = summarize(details, args)
@@ -217,7 +248,9 @@ def summarize(details: list[dict], args: argparse.Namespace) -> dict:
         "chunk_size": args.chunk_size if args.mode != "no-rag" else "",
         "chunk_overlap": args.chunk_overlap if args.mode != "no-rag" else "",
         "top_k": args.top_k if args.mode != "no-rag" else "",
+        "recherche": args.search_mode if args.mode != "no-rag" else "",
         "n_questions": len(details),
+        "erreurs": sum(1 for d in details if "erreur" in d),
         "hit_rate": round(hit_rate(ranks, args.top_k), 3) if ranks else "",
         "mrr": round(mrr(ranks), 3) if ranks else "",
         "refus_correct": _mean([d["refus"] for d in out_corpus if "refus" in d]),
@@ -241,12 +274,17 @@ def write_results(details: list[dict], summary: dict) -> None:
         writer.writeheader()
         writer.writerows(details)
 
-    new_file = not SUMMARY_FILE.exists()
-    with SUMMARY_FILE.open("a", encoding="utf-8-sig" if new_file else "utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(summary), delimiter=";")
-        if new_file:
-            writer.writeheader()
-        writer.writerow(summary)
+    # Synthèse : on relit les lignes existantes pour accepter l'ajout de nouvelles colonnes
+    rows = []
+    if SUMMARY_FILE.exists():
+        with SUMMARY_FILE.open(encoding="utf-8-sig", newline="") as f:
+            rows = list(csv.DictReader(f, delimiter=";"))
+    rows.append(summary)
+    fields = list(dict.fromkeys(key for row in rows for key in row))
+    with SUMMARY_FILE.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields, delimiter=";", restval="")
+        writer.writeheader()
+        writer.writerows(rows)
 
     print("\nRésultats :")
     for key, value in summary.items():
