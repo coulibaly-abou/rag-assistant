@@ -1,6 +1,7 @@
 """Configuration de l'application, lue depuis les variables d'environnement / le fichier .env."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,6 +28,8 @@ class Settings(BaseSettings):
     # Recherche et génération
     top_k: int = Field(default=5, gt=0)
     min_score: float = Field(default=0.0, description="Score cosinus minimal d'un chunk retenu")
+    search_mode: Literal["vector", "hybrid"] = "vector"
+    hybrid_candidates: int = Field(default=20, gt=0, description="Candidats par méthode avant RRF")
     temperature: float = 0.1
     num_ctx: int = 4096
     request_timeout: float = 300.0

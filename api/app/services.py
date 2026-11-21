@@ -31,7 +31,15 @@ def build_services(settings: Settings) -> Services:
         temperature=settings.temperature,
         num_ctx=settings.num_ctx,
     )
-    pipeline = RagPipeline(embedder, store, llm, settings.top_k, settings.min_score)
+    pipeline = RagPipeline(
+        embedder,
+        store,
+        llm,
+        top_k=settings.top_k,
+        min_score=settings.min_score,
+        search_mode=settings.search_mode,
+        hybrid_candidates=settings.hybrid_candidates,
+    )
     return Services(settings, embedder, store, llm, pipeline)
 
 

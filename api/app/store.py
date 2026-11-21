@@ -21,6 +21,23 @@ class SearchHit:
     page: int
     matiere: str
     score: float
+    chunk_index: int = -1
+
+    @property
+    def key(self) -> tuple[str, int]:
+        """Identifiant unique d'un chunk (sert à fusionner plusieurs listes de résultats)."""
+        return (self.source, self.chunk_index)
+
+
+def _to_hit(payload: dict, score: float) -> SearchHit:
+    return SearchHit(
+        text=payload["text"],
+        source=payload["source"],
+        page=int(payload["page"]),
+        matiere=payload["matiere"],
+        score=float(score),
+        chunk_index=int(payload.get("chunk_index", -1)),
+    )
 
 
 def _match(**fields: str) -> models.Filter:
@@ -121,13 +138,21 @@ class VectorStore:
             query_filter=_match(matiere=matiere) if matiere else None,
             with_payload=True,
         )
-        return [
-            SearchHit(
-                text=p.payload["text"],
-                source=p.payload["source"],
-                page=int(p.payload["page"]),
-                matiere=p.payload["matiere"],
-                score=float(p.score),
+        return [_to_hit(p.payload, p.score) for p in response.points]
+
+    def all_chunks(self) -> list[SearchHit]:
+        """Tous les chunks de la collection (pour construire l'index BM25)."""
+        if not self.exists():
+            return []
+        hits, offset = [], None
+        while True:
+            points, offset = self.client.scroll(
+                self.collection, limit=256, offset=offset, with_payload=True, with_vectors=False
             )
-            for p in response.points
-        ]
+            hits.extend(_to_hit(p.payload, 0.0) for p in points)
+            if offset is None:
+                return hits
+
+    def fingerprint(self) -> tuple:
+        """Change dès qu'un fichier est ajouté, modifié ou supprimé de l'index."""
+        return (self.count(), tuple(self._facet("file_hash")))

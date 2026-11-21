@@ -1,5 +1,10 @@
 # Assistant RAG local sur mes cours
 
+[![CI](https://github.com/coulibaly-abou/rag-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/coulibaly-abou/rag-assistant/actions/workflows/ci.yml)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+![Docker Compose](https://img.shields.io/badge/docker-compose-2496ED)
+[![Licence MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+
 Assistant question-réponse sur mes propres documents de cours (PDF, DOCX, Markdown). Il fonctionne **100 % en local** avec Docker : aucune API payante, aucune donnée envoyée à l'extérieur.
 
 **Stack :** Ollama (`llama3.2:3b`, `nomic-embed-text`) · Qdrant · FastAPI · Open WebUI · Docker Compose
@@ -102,6 +107,11 @@ curl -X POST http://localhost:8000/ask -H "Content-Type: application/json" \
 
 Tous les paramètres se règlent dans un fichier `.env`, à créer à partir de [.env.example](.env.example) : modèles, taille des chunks, top-k, température, etc. Rien n'est écrit en dur dans le code. Après une modification, lance `docker compose up -d`.
 
+La recherche peut fonctionner en deux modes :
+
+- **`SEARCH_MODE=vector`** (par défaut) : recherche sémantique seule, par similarité cosinus des embeddings.
+- **`SEARCH_MODE=hybrid`** : la recherche sémantique est combinée à une recherche par mots-clés (BM25), et les deux classements sont fusionnés par *Reciprocal Rank Fusion*. Ce mode aide pour les termes exacts : noms de fonctions comme `iloc`, sigles, valeurs comme `68-95-99,7`.
+
 ## Évaluation
 
 Le jeu de test se trouve dans [eval/questions.csv](eval/questions.csv), séparé par des points-virgules et modifiable dans Excel. Pour chaque question, il indique la réponse attendue, le fichier et la page attendus, et s'il s'agit d'une question piège hors corpus.
@@ -170,14 +180,21 @@ rag-assistant/
 │       ├── llm.py            # génération Ollama
 │       ├── store.py          # Qdrant
 │       ├── ingest.py         # pipeline d'indexation
+│       ├── search.py         # recherche manuelle dans l'index (sans LLM)
+│       ├── hybrid.py         # recherche hybride BM25 + vecteurs (RRF)
 │       ├── rag.py            # recherche + prompt + génération
 │       └── openai_compat.py  # /v1/* pour Open WebUI
 ├── eval/                   # jeu de test, métriques, plan d'expériences, résultats
 ├── notebooks/              # découverte (étape 2)
 ├── tests/                  # pytest
-├── data/                   # mes cours (non versionnés) + 2 cours de démo
-└── docs/                   # cahier des charges
+├── data/                   # mes cours (non versionnés) + 3 cours de démo
+└── docs/                   # cahier des charges, comptes rendus d'étapes
 ```
+
+Comptes rendus :
+
+- [Cahier des charges](docs/Cahier_des_charges_RAG_local.pdf)
+- [Étape 4 — réponses avec et sans RAG](docs/etape4_avec_sans_rag.md)
 
 ## Dépannage
 
@@ -189,6 +206,6 @@ rag-assistant/
 
 - Les PDF scannés (images) ne sont pas lus, car il n'y a pas d'OCR. Ils apparaissent comme des erreurs dans le rapport d'indexation.
 - Un DOCX ou un Markdown n'a pas de pages : ses passages sont tous rattachés à la page 1.
-- Sur processeur seul, une réponse prend de 10 à 30 secondes avec un modèle 3B.
+- Sur un portable sans GPU (Docker limité à 8 Go de RAM), une réponse RAG prend environ 2 à 3 minutes avec `llama3.2:3b` et 5 passages de contexte. C'est au-dessus de l'objectif de 30 secondes. Une machine avec GPU, un contexte plus court ou un modèle plus petit réduisent ce temps.
 - Le LLM-juge local (3B) est imparfait : il faut compléter avec une notation manuelle sur un échantillon.
 - Dans Open WebUI, seule la dernière question est utilisée pour la recherche. Les questions de relance du type « et pour la variance ? » doivent donc être reformulées.

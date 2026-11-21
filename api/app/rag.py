@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 from app.embeddings import OllamaEmbedder
+from app.hybrid import BM25Index, rrf_fuse
 from app.llm import OllamaLLM
 from app.store import SearchHit, VectorStore
 
@@ -88,19 +89,38 @@ class RagPipeline:
         llm: OllamaLLM,
         top_k: int = 5,
         min_score: float = 0.0,
+        search_mode: str = "vector",
+        hybrid_candidates: int = 20,
     ):
         self.embedder = embedder
         self.store = store
         self.llm = llm
         self.top_k = top_k
         self.min_score = min_score
+        self.search_mode = search_mode
+        self.hybrid_candidates = hybrid_candidates
+        self._bm25: tuple[tuple, BM25Index] | None = None
+
+    def _bm25_index(self) -> BM25Index:
+        """Index BM25 en mémoire, reconstruit seulement quand le contenu de Qdrant change."""
+        fingerprint = self.store.fingerprint()
+        if self._bm25 is None or self._bm25[0] != fingerprint:
+            self._bm25 = (fingerprint, BM25Index(self.store.all_chunks()))
+        return self._bm25[1]
 
     def retrieve(
         self, question: str, top_k: int | None = None, matiere: str | None = None
     ) -> list[SearchHit]:
+        k = top_k or self.top_k
         vector = self.embedder.embed_query(question)
-        hits = self.store.search(vector, top_k or self.top_k, matiere=matiere)
-        return [h for h in hits if h.score >= self.min_score]
+        if self.search_mode != "hybrid":
+            hits = self.store.search(vector, k, matiere=matiere)
+            return [h for h in hits if h.score >= self.min_score]
+
+        n = max(self.hybrid_candidates, k)
+        dense = [h for h in self.store.search(vector, n, matiere) if h.score >= self.min_score]
+        sparse = self._bm25_index().search(question, n, matiere)
+        return rrf_fuse([dense, sparse], k)
 
     def answer(
         self,

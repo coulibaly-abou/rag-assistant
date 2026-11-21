@@ -37,6 +37,12 @@ class FakeStore:
     def count(self):
         return len(self.hits)
 
+    def all_chunks(self):
+        return list(self.hits)
+
+    def fingerprint(self):
+        return (len(self.hits), tuple(h.source for h in self.hits))
+
 
 class FakeLLM:
     def __init__(self):
