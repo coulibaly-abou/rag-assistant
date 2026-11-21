@@ -1,0 +1,6 @@
+question;reponse_attendue;source_attendue;page_attendue;hors_corpus
+Pourquoi divise-t-on par n-1 dans la variance corrigée ?;Pour obtenir un estimateur sans biais de la variance de la population.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Quand une valeur est-elle aberrante selon la règle de Tukey ?;Quand elle est inférieure à Q1 - 1,5 IQR ou supérieure à Q3 + 1,5 IQR.;Statistiques_demo/cours_statistique_descriptive.md;1;0
+Quelle est la valeur par défaut du paramètre how dans pd.merge ?;inner, l'intersection des clés.;Python_demo/cours_python_pandas.md;1;0
+À quoi sert la formule de Bayes ?;À inverser un conditionnement : P(B sachant A) = P(A sachant B) x P(B) / P(A).;Statistiques_demo/cours_probabilites.pdf;2;0
+Que dit la règle des 68-95-99,7 ?;Environ 68 %, 95 % et 99,7 % des valeurs sont à moins de 1, 2 et 3 écarts-types de la moyenne.;Statistiques_demo/cours_probabilites.pdf;4;0
