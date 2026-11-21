@@ -64,7 +64,18 @@ curl -X POST http://localhost:8000/ingest
 # ou : docker compose exec api python -m app.ingest
 ```
 
-L'API indexe aussi automatiquement `data/` à chaque démarrage. Le dossier `data/` n'est pas versionné, à l'exception des deux cours de démonstration `*_demo/`, qui sont libres de droits.
+L'API indexe aussi automatiquement `data/` à chaque démarrage. Le dossier `data/` n'est pas versionné, à l'exception des cours de démonstration `*_demo/` (deux en Markdown, un PDF de 4 pages), qui sont libres de droits.
+
+### Vérifier l'index (recherche manuelle, sans LLM)
+
+```bash
+# Contenu de l'index : fichiers, matière, pages, nombre de chunks, empreinte
+docker compose exec api python -m app.search --stats
+
+# Passages les plus proches d'une question, avec score, fichier et page
+docker compose exec api python -m app.search "Quelle est l'espérance d'une loi binomiale ?" -k 3
+docker compose exec api python -m app.search "variance" --matiere Statistiques_demo
+```
 
 ### Poser des questions
 

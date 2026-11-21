@@ -15,6 +15,14 @@ Quelle est la différence entre loc et iloc ?;loc sélectionne par étiquettes, 
 Comment compter les valeurs manquantes par colonne ?;df.isna().sum().;Python_demo/cours_python_pandas.md;1;0
 Quelle est la valeur par défaut du paramètre how dans pd.merge ?;inner, l'intersection des clés.;Python_demo/cours_python_pandas.md;1;0
 Comment créer un environnement virtuel Python ?;python -m venv .venv puis activation.;Python_demo/cours_python_pandas.md;1;0
+Que vaut la probabilité de l'événement contraire de A ?;P(non A) = 1 - P(A).;Statistiques_demo/cours_probabilites.pdf;1;0
+Qu'est-ce que la formule de Laplace ?;En situation d'équiprobabilité, nombre de cas favorables divisé par le nombre de cas possibles.;Statistiques_demo/cours_probabilites.pdf;1;0
+À quoi sert la formule de Bayes ?;À inverser un conditionnement : P(B sachant A) = P(A sachant B) x P(B) / P(A).;Statistiques_demo/cours_probabilites.pdf;2;0
+Quand deux événements sont-ils indépendants ?;Quand P(A et B) = P(A) x P(B).;Statistiques_demo/cours_probabilites.pdf;2;0
+Quelles sont l'espérance et la variance d'une loi binomiale B(n, p) ?;Espérance n x p, variance n x p x (1 - p).;Statistiques_demo/cours_probabilites.pdf;3;0
+Que modélise la loi de Poisson ?;Le nombre d'événements rares sur un intervalle de temps, avec espérance et variance égales à lambda.;Statistiques_demo/cours_probabilites.pdf;3;0
+Que dit la règle des 68-95-99,7 ?;Environ 68 %, 95 % et 99,7 % des valeurs sont à moins de 1, 2 et 3 écarts-types de la moyenne.;Statistiques_demo/cours_probabilites.pdf;4;0
+Que dit le théorème central limite ?;La moyenne de n variables indépendantes de même loi suit approximativement une loi normale N(mu, sigma²/n) pour n grand.;Statistiques_demo/cours_probabilites.pdf;4;0
 Qui a remporté la Coupe du monde de football 2018 ?;Hors cours : le système doit répondre « je ne sais pas ».;;;1
 Quelle est la recette de la pâte à crêpes ?;Hors cours : le système doit répondre « je ne sais pas ».;;;1
 Comment entraîner un réseau de neurones convolutif avec PyTorch ?;Hors cours : le système doit répondre « je ne sais pas ».;;;1
