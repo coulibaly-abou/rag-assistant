@@ -1,0 +1,19 @@
+﻿date;tag;mode;llm;embedding;chunk_size;chunk_overlap;top_k;n_questions;hit_rate;mrr;refus_correct;faux_refus;fidelite_0_2;pertinence_0_2;latence_mediane_s;latence_p95_s;recherche;erreurs
+2026-11-21 19:04;reference;retrieval;;nomic-embed-text;300;50;5;27;1.0;0.931;;;;;;;;
+2026-11-21 19:08;etape4_sans_rag;no-rag;llama3.2:3b;;;;;5;;;;0;;;24.14;180.88;;
+2026-11-21 19:21;etape4_rag;rag;llama3.2:3b;nomic-embed-text;300;50;5;5;1.0;0.667;;0;;;148.53;165.94;;
+2026-11-21 19:21;reference;retrieval;;nomic-embed-text;300;50;5;27;1.0;0.931;;;;;;;;
+2026-11-21 19:21;chunk500;retrieval;;nomic-embed-text;500;50;5;27;1.0;0.958;;;;;;;;
+2026-11-21 19:22;chunk800;retrieval;;nomic-embed-text;800;80;5;27;1.0;0.92;;;;;;;;
+2026-11-21 19:22;top_k3;retrieval;;nomic-embed-text;300;50;3;27;1.0;0.931;;;;;;;;
+2026-11-21 19:22;top_k8;retrieval;;nomic-embed-text;300;50;8;27;1.0;0.931;;;;;;;;
+2026-11-21 20:20;sans_rag;no-rag;llama3.2:3b;;;;;27;;;0;0;1.042;1.292;32.91;109.0;;
+2026-11-21 20:23;reference;retrieval;;nomic-embed-text;300;50;5;27;1.0;0.931;;;;;;;vector;0
+2026-11-21 20:23;chunk500;retrieval;;nomic-embed-text;500;50;5;27;1.0;0.958;;;;;;;vector;0
+2026-11-21 20:23;chunk800;retrieval;;nomic-embed-text;800;80;5;27;1.0;0.92;;;;;;;vector;0
+2026-11-21 20:23;top_k3;retrieval;;nomic-embed-text;300;50;3;27;1.0;0.931;;;;;;;vector;0
+2026-11-21 20:23;top_k8;retrieval;;nomic-embed-text;300;50;8;27;1.0;0.931;;;;;;;vector;0
+2026-11-21 20:23;hybride;retrieval;;nomic-embed-text;300;50;5;27;1.0;0.958;;;;;;;hybrid;0
+2026-11-21 20:23;hybride_k3;retrieval;;nomic-embed-text;300;50;3;27;1.0;0.958;;;;;;;hybrid;0
+2026-11-21 22:00;reference_rag;rag;llama3.2:3b;nomic-embed-text;300;50;5;27;1.0;0.928;1;0;0.826;0.609;110.89;186.16;vector;1
+2026-11-21 22:32;ameliore_hybride_k3;rag;llama3.2:3b;nomic-embed-text;300;50;3;27;1.0;0.958;1;0;0.917;0.833;71.2;195.9;hybrid;0

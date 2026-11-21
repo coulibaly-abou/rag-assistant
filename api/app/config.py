@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     auto_ingest: bool = True
 
     # Recherche et génération
-    top_k: int = Field(default=5, gt=0)
+    top_k: int = Field(default=3, gt=0)
     min_score: float = Field(default=0.0, description="Score cosinus minimal d'un chunk retenu")
-    search_mode: Literal["vector", "hybrid"] = "vector"
+    search_mode: Literal["vector", "hybrid"] = "hybrid"
     hybrid_candidates: int = Field(default=20, gt=0, description="Candidats par méthode avant RRF")
     temperature: float = 0.1
     num_ctx: int = 4096
